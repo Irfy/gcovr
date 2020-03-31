@@ -121,7 +121,8 @@ def process_gcov_data(data_fname, covdata, source_fname, options, currdir=None):
         exclude_unreachable_branches=options.exclude_unreachable_branches,
         exclude_throw_branches=options.exclude_throw_branches,
         ignore_parse_errors=options.gcov_ignore_parse_errors,
-        exclude_lines_by_pattern=options.exclude_lines_by_pattern)
+        exclude_lines_by_pattern=options.exclude_lines_by_pattern,
+        respect_exclusion_markers=options.respect_exclusion_markers)
 
     covdata.setdefault(key, FileCoverage(key)).update(parser.coverage)
 
@@ -227,7 +228,7 @@ class GcovParser(object):
 
     def parse_all_lines(
         self, lines, exclude_unreachable_branches, exclude_throw_branches,
-        ignore_parse_errors, exclude_lines_by_pattern
+        ignore_parse_errors, exclude_lines_by_pattern, respect_exclusion_markers
     ):
         exclude_lines_by_pattern_regex = (re.compile(exclude_lines_by_pattern)
                                           if exclude_lines_by_pattern
@@ -236,7 +237,7 @@ class GcovParser(object):
             try:
                 self.parse_line(
                     line, exclude_unreachable_branches, exclude_throw_branches,
-                    exclude_lines_by_pattern_regex)
+                    exclude_lines_by_pattern_regex, respect_exclusion_markers)
             except Exception as ex:
                 self.unrecognized_lines.append(line)
                 self.deferred_exceptions.append(ex)
@@ -246,7 +247,7 @@ class GcovParser(object):
 
     def parse_line(
         self, line, exclude_unreachable_branches, exclude_throw_branches,
-        exclude_lines_by_pattern_regex
+        exclude_lines_by_pattern_regex, respect_exclusion_markers
     ):
         # If this is a tag line, we stay on the same line number
         # and can return immediately after processing it.
@@ -270,7 +271,7 @@ class GcovParser(object):
         status = segments[0].strip()
         code = segments[2] if 2 < len(segments) else ""
 
-        if exclude_line_flag in line:
+        if respect_exclusion_markers and exclude_line_flag in line:
             for header, flag in exclude_line_pattern.findall(line):
                 self.parse_exclusion_marker(header, flag)
         if exclude_lines_by_pattern_regex:
