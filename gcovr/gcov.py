@@ -120,7 +120,8 @@ def process_gcov_data(data_fname, covdata, source_fname, options, currdir=None):
         INPUT,
         exclude_unreachable_branches=options.exclude_unreachable_branches,
         exclude_throw_branches=options.exclude_throw_branches,
-        ignore_parse_errors=options.gcov_ignore_parse_errors)
+        ignore_parse_errors=options.gcov_ignore_parse_errors,
+        no_markers=options.no_markers)
 
     covdata.setdefault(key, FileCoverage(key)).update(parser.coverage)
 
@@ -226,12 +227,13 @@ class GcovParser(object):
 
     def parse_all_lines(
         self, lines, exclude_unreachable_branches, exclude_throw_branches,
-        ignore_parse_errors
+        ignore_parse_errors, no_markers=False
     ):
         for line in lines:
             try:
                 self.parse_line(
-                    line, exclude_unreachable_branches, exclude_throw_branches)
+                    line, exclude_unreachable_branches, exclude_throw_branches,
+                    no_markers)
             except Exception as ex:
                 self.unrecognized_lines.append(line)
                 self.deferred_exceptions.append(ex)
@@ -240,7 +242,8 @@ class GcovParser(object):
         self.check_unrecognized_lines(ignore_parse_errors=ignore_parse_errors)
 
     def parse_line(
-        self, line, exclude_unreachable_branches, exclude_throw_branches
+        self, line, exclude_unreachable_branches, exclude_throw_branches,
+        no_markers
     ):
         # If this is a tag line, we stay on the same line number
         # and can return immediately after processing it.
@@ -261,7 +264,7 @@ class GcovParser(object):
             except ValueError:
                 pass  # keep previous line number!
 
-        if exclude_line_flag in line:
+        if not no_markers and exclude_line_flag in line:
             excl_line = False
             for header, flag in exclude_line_pattern.findall(line):
                 if self.parse_exclusion_marker(header, flag):
