@@ -20,7 +20,7 @@ output_re = re.compile(r"[Cc]reating [`'](.*)'$")
 source_re = re.compile(r"[Cc](annot|ould not) open (source|graph|output) file")
 
 exclude_line_flag = "_EXCL_"
-exclude_line_pattern = re.compile(r'([GL]COVR?)_EXCL_(START|STOP)')
+exclude_line_pattern = re.compile(r'([GL]COVR?)_EXCL_(LINE|START|STOP)')
 
 c_style_comment_pattern = re.compile(r'/\*.*?\*/')
 cpp_style_comment_pattern = re.compile(r'//.*?$')
@@ -271,12 +271,17 @@ class GcovParser(object):
         status = segments[0].strip()
         code = segments[2] if 2 < len(segments) else ""
 
+        excl_line = False
         if respect_exclusion_markers and exclude_line_flag in line:
             for header, flag in exclude_line_pattern.findall(line):
-                self.parse_exclusion_marker(header, flag)
+                if self.parse_exclusion_marker(header, flag):
+                    excl_line = True
         if exclude_lines_by_pattern_regex:
             if exclude_lines_by_pattern_regex.match(code):
-                self.excluding.append(False)
+                excl_line = True
+
+        if excl_line:
+            self.excluding.append(False)
 
         is_code_statement = self.parse_code_line(status, code)
 
@@ -433,13 +438,17 @@ class GcovParser(object):
 
         - START markers are added to the exclusion_stack
         - STOP markers remove a marker from the exclusion_stack
+        - LINE markers return True
+
+        returns: True when this line should be excluded, False for n/a.
 
         header: exclusion marker name, e.g. "LCOV" or "GCOVR"
+        flag: exclusion marker action, one of "START", "STOP", or "LINE"
         flag: exclusion marker action, one of "START", "STOP"
         """
         if flag == 'START':
             self.excluding.append((header, self.lineno))
-            return
+            return False
 
         if flag == 'STOP':
             if not self.excluding:
@@ -449,7 +458,7 @@ class GcovParser(object):
                     "without corresponding {header}_EXCL_START, "
                     "when processing {fname}",
                     header=header, lineno=self.lineno, fname=self.fname)
-                return
+                return False
 
             start_header, start_line = self.excluding.pop()
             if header != start_header:
@@ -459,7 +468,10 @@ class GcovParser(object):
                     "on line {lineno}, when processing {fname}",
                     start_header=start_header, start_line=start_line,
                     header=header, lineno=self.lineno, fname=self.fname)
-            return
+            return False
+
+        if flag == 'LINE':
+            return True
 
         assert False, "unknown exclusion marker"  # pragma: no cover
 
